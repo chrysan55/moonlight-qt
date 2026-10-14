@@ -30,8 +30,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Path build/tools -Force | Out-Null
-          Invoke-WebRequest 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' -OutFile build/tools/nsis.zip
-          Expand-Archive build/tools/nsis.zip build/tools
+          curl.exe --fail --location --retry 3 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' --output build/tools/nsis.zip
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS download failed' }
+          7z.exe x build/tools/nsis.zip -obuild/tools -y
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS archive extraction failed' }
 
       - name: Build single EXE
         shell: pwsh

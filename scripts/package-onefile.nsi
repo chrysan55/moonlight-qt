@@ -14,7 +14,7 @@ Unicode true
 Name "CloudComputer"
 Caption "CloudComputer"
 OutFile "${OUTPUT}\CloudComputer.exe"
-Icon "${__FILEDIR__}\..\app\moonlight.ico"
+Icon "..\app\moonlight.ico"
 RequestExecutionLevel user
 SilentInstall silent
 AutoCloseWindow true

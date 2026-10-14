@@ -52,6 +52,9 @@ jobs:
 
       - name: Verify launch, settings, concurrency, and cleanup
         shell: pwsh
+        env:
+          QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES: 1
+          QT_QUICK_BACKEND: software
         run: |
           $ErrorActionPreference = 'Stop'
           $testDir = Join-Path $PWD 'build/单文件 test'

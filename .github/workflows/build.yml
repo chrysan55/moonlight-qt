@@ -1,45 +1,82 @@
----
-name: Build
-permissions:
-  contents: read
+name: CloudComputer Windows amd64
 
 on:
   push:
-  pull_request:
-    branches:
-      - master
+    branches: [codex/cloudcomputer-windows-amd64]
+  workflow_dispatch:
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      ci_version: ${{ steps.set-ci-version.outputs.ci_version }}
+  windows-amd64:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      CI_VERSION: 6.2.0
     steps:
-      - name: Set CI version
-        id: set-ci-version
-        shell: bash
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install Qt for MSVC x64
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.11.2
+          arch: win64_msvc2022_64
+          cache: true
+          set-env: true
+
+      - name: Download upstream Windows dependencies
+        run: ./setup-deps.ps1
+
+      - name: Build and deploy Release x64
+        shell: cmd
+        run: scripts\build-arch.bat Release x64
+
+      - name: Verify executable and runtime dependencies
+        shell: pwsh
         run: |
-          CI_VERSION=`echo ${GITHUB_SHA} | cut -c1-6`
-          echo "ci_version=${CI_VERSION}" >> "${GITHUB_OUTPUT}"
+          $ErrorActionPreference = 'Stop'
+          $deploy = Join-Path $PWD 'build/deploy-x64-release'
+          $exe = Join-Path $deploy 'CloudComputer.exe'
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          $pe = [BitConverter]::ToInt32($bytes, 0x3c)
+          $machine = [BitConverter]::ToUInt16($bytes, $pe + 4)
+          if ($machine -ne 0x8664) { throw 'Executable is not AMD64' }
+          $version = (Get-Item $exe).VersionInfo
+          if ($version.ProductName -ne 'CloudComputer') { throw 'Unexpected product name' }
+          $stdout = Join-Path $PWD 'build/windows-version.stdout.txt'
+          $stderr = Join-Path $PWD 'build/windows-version.stderr.txt'
+          $process = Start-Process -FilePath $exe -ArgumentList '--version' -WorkingDirectory $deploy -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Version check timed out' }
+          $output = (Get-Content $stdout -Raw) + (Get-Content $stderr -Raw)
+          if ($process.ExitCode -ne 0 -or $output -notmatch 'CloudComputer 6\.2\.0') { throw "Version check failed: $output" }
+          foreach ($file in @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Quick.dll', 'platforms/qwindows.dll', 'AntiHooking.dll', 'vcruntime140.dll')) {
+            if (-not (Test-Path (Join-Path $deploy $file))) { throw "Missing runtime: $file" }
+          }
+          Remove-Item (Join-Path $deploy 'portable.dat.inactive') -ErrorAction SilentlyContinue
+          New-Item -ItemType File -Path (Join-Path $deploy 'portable.dat') -Force | Out-Null
+          @("PASS: MSVC Release build", "PASS: PE machine AMD64 (0x8664)", "PASS: CloudComputer product name", "PASS: --version with deployed DLLs", "PASS: Qt platform and VC runtime files", "Source: $env:GITHUB_SHA") | Set-Content 'build/windows-amd64-verification.txt'
+          Compress-Archive -Path "$deploy/*" -DestinationPath 'build/CloudComputer-Windows-amd64.zip'
+          Get-FileHash 'build/CloudComputer-Windows-amd64.zip' -Algorithm SHA256 | Format-List
 
-  build-appimage:
-    needs: setup
-    uses: ./.github/workflows/build-appimage.yml
-    with:
-      ci_version: ${{ needs.setup.outputs.ci_version }}
+      - name: Upload portable Windows program
+        uses: actions/upload-artifact@v6
+        with:
+          name: CloudComputer-Windows-amd64
+          path: |
+            build/CloudComputer-Windows-amd64.zip
+            build/windows-amd64-verification.txt
+          if-no-files-found: error
+          compression-level: 0
 
-  build-steamlink:
-    needs: setup
-    uses: ./.github/workflows/build-steamlink.yml
-    with:
-      ci_version: ${{ needs.setup.outputs.ci_version }}
-
-  build-windows-macos:
-    needs: setup
-    uses: ./.github/workflows/build-win-mac.yml
-    with:
-      ci_version: ${{ needs.setup.outputs.ci_version }}
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: CloudComputer-Windows-amd64-diagnostics
+          path: |
+            build/windows-version.*.txt
+            build/build-x64-release/**/*.log
+          if-no-files-found: ignore

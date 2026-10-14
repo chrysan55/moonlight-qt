@@ -11,13 +11,15 @@ import SystemProperties 1.0
 Flickable {
     id: settingsPage
     objectName: qsTr("Settings")
+    property bool singleColumn: width < 800
 
     signal languageChanged()
 
     boundsBehavior: Flickable.OvershootBounds
 
-    contentWidth: settingsColumn1.width > settingsColumn2.width ? settingsColumn1.width : settingsColumn2.width
-    contentHeight: settingsColumn1.height > settingsColumn2.height ? settingsColumn1.height : settingsColumn2.height
+    contentWidth: width
+    contentHeight: singleColumn ? settingsColumn2.y + settingsColumn2.height
+                                : Math.max(settingsColumn1.height, settingsColumn2.height)
 
     ScrollBar.vertical: ScrollBar {
         anchors {
@@ -96,7 +98,7 @@ Flickable {
     Column {
         padding: 10
         id: settingsColumn1
-        width: settingsPage.width / 2
+        width: settingsPage.singleColumn ? settingsPage.width : settingsPage.width / 2
         spacing: 15
 
         GroupBox {
@@ -1312,9 +1314,10 @@ Flickable {
     Column {
         padding: 10
         rightPadding: 20
-        anchors.left: settingsColumn1.right
         id: settingsColumn2
-        width: settingsPage.width / 2
+        x: settingsPage.singleColumn ? 0 : settingsColumn1.width
+        y: settingsPage.singleColumn ? settingsColumn1.height + spacing : 0
+        width: settingsColumn1.width
         spacing: 15
 
         GroupBox {
@@ -1759,27 +1762,6 @@ Flickable {
                     ToolTip.timeout: 5000
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("This unlocks extremely high video bitrates for use with Sunshine hosts. It should only be used when streaming over an Ethernet LAN connection.")
-                }
-
-                CheckBox {
-                    id: enableMdns
-                    width: parent.width
-                    text: qsTr("Automatically find PCs on the local network (Recommended)")
-                    font.pointSize: 12
-                    checked: StreamingPreferences.enableMdns
-                    onCheckedChanged: {
-                        // This is called on init, so only do the work if we've
-                        // actually changed the value.
-                        if (StreamingPreferences.enableMdns != checked) {
-                            StreamingPreferences.enableMdns = checked
-
-                            // Restart polling so the mDNS change takes effect
-                            if (window.pollingActive) {
-                                ComputerManager.stopPollingAsync()
-                                ComputerManager.startPolling()
-                            }
-                        }
-                    }
                 }
 
                 CheckBox {

@@ -11,14 +11,16 @@ import SdlGamepadKeyNavigation 1.0
 
 CenteredGridView {
     property ComputerModel computerModel : createModel()
+    property bool desktopLaunchPending: false
 
     id: pcGrid
     focus: true
     activeFocusOnTab: true
-    topMargin: 20
-    bottomMargin: 5
-    cellWidth: 310; cellHeight: 330;
-    objectName: qsTr("Computers")
+    topMargin: Math.max(16, (height - cellHeight) / 2)
+    bottomMargin: 16
+    horizontalMargin: Math.max(minMargin, (width - cellWidth) / 2)
+    cellWidth: 280; cellHeight: 280;
+    objectName: "奕东智算云电脑"
 
     Component.onCompleted: {
         // Don't show any highlighted item until interacting with them.
@@ -33,6 +35,11 @@ CenteredGridView {
     StackView.onActivated: {
         // Setup signals on CM
         ComputerManager.computerAddCompleted.connect(addComplete)
+        ComputerManager.computerAddRejected.connect(addRejected)
+
+        if (count === 0) {
+            connectPcButton.forceActiveFocus()
+        }
 
         // Highlight the first item if a gamepad is connected
         if (currentIndex === -1 && SdlGamepadKeyNavigation.getConnectedGamepads() > 0) {
@@ -41,7 +48,11 @@ CenteredGridView {
     }
 
     StackView.onDeactivating: {
+        desktopLaunchPending = false
+        computerModel.cancelDesktopStart()
+        desktopLoadingDialog.close()
         ComputerManager.computerAddCompleted.disconnect(addComplete)
+        ComputerManager.computerAddRejected.disconnect(addRejected)
     }
 
     function pairingComplete(error)
@@ -51,10 +62,39 @@ CenteredGridView {
 
         // Display a failed dialog if we got an error
         if (error !== undefined) {
+            desktopLaunchPending = false
             errorDialog.text = error
             errorDialog.helpText = ""
             errorDialog.open()
         }
+        else if (desktopLaunchPending) {
+            desktopLoadingDialog.open()
+        }
+    }
+
+    function desktopReady(session, isResume)
+    {
+        desktopLaunchPending = false
+        pairDialog.close()
+        desktopLoadingDialog.close()
+
+        var component = Qt.createComponent("StreamSegue.qml")
+        var segue = component.createObject(stackView, {
+            "appName": "Desktop",
+            "session": session,
+            "isResume": isResume
+        })
+        stackView.push(segue)
+    }
+
+    function desktopFailed(error)
+    {
+        desktopLaunchPending = false
+        pairDialog.close()
+        desktopLoadingDialog.close()
+        errorDialog.text = error
+        errorDialog.helpText = ""
+        errorDialog.open()
     }
 
     function addComplete(success, detectedPortBlocking)
@@ -73,41 +113,49 @@ CenteredGridView {
         }
     }
 
+    function addRejected(error)
+    {
+        errorDialog.text = error
+        errorDialog.helpText = ""
+        errorDialog.open()
+    }
+
     function createModel()
     {
         var model = Qt.createQmlObject('import ComputerModel 1.0; ComputerModel {}', parent, '')
         model.initialize(ComputerManager)
         model.pairingCompleted.connect(pairingComplete)
         model.connectionTestCompleted.connect(testConnectionDialog.connectionTestComplete)
+        model.desktopSessionReady.connect(desktopReady)
+        model.desktopStartFailed.connect(desktopFailed)
         return model
     }
 
-    Row {
+    Button {
+        id: connectPcButton
         anchors.centerIn: parent
-        spacing: 5
+        width: 220
+        height: 80
         visible: pcGrid.count === 0
+        enabled: visible
+        text: qsTr("连接 PC")
+        font.pointSize: 18
+        icon.source: "qrc:/res/ic_add_to_queue_white_48px.svg"
+        icon.width: 32
+        icon.height: 32
+        onClicked: addPcDialog.open()
+    }
 
-        BusyIndicator {
-            id: searchSpinner
-            visible: StreamingPreferences.enableMdns
-            running: visible
-        }
-
-        Label {
-            height: searchSpinner.height
-            elide: Label.ElideRight
-            text: StreamingPreferences.enableMdns ? qsTr("Searching for compatible hosts on your local network...")
-                                                  : qsTr("Automatic PC discovery is disabled. Add your PC manually.")
-            font.pointSize: 20
-            verticalAlignment: Text.AlignVCenter
-            wrapMode: Text.Wrap
-        }
+    Shortcut {
+        sequence: StandardKey.New
+        enabled: stackView.currentItem === pcGrid && pcGrid.count === 0
+        onActivated: connectPcButton.clicked()
     }
 
     model: computerModel
 
     delegate: NavigableItemDelegate {
-        width: 300; height: 320;
+        width: 270; height: 270;
         grid: pcGrid
 
         property alias pcContextMenu : pcContextMenuLoader.item
@@ -117,8 +165,8 @@ CenteredGridView {
             anchors.horizontalCenter: parent.horizontalCenter
             source: "qrc:/res/desktop_windows-48px.svg"
             sourceSize {
-                width: 200
-                height: 200
+                width: 160
+                height: 160
             }
         }
 
@@ -131,8 +179,8 @@ CenteredGridView {
             visible: !model.statusUnknown && (!model.online || !model.paired)
             source: !model.online ? "qrc:/res/warning_FILL1_wght300_GRAD200_opsz24.svg" : "qrc:/res/baseline-lock-24px.svg"
             sourceSize {
-                width: !model.online ? 75 : 70
-                height: !model.online ? 75 : 70
+                width: !model.online ? 60 : 56
+                height: !model.online ? 60 : 56
             }
         }
 
@@ -141,8 +189,8 @@ CenteredGridView {
             anchors.horizontalCenter: pcIcon.horizontalCenter
             anchors.verticalCenter: pcIcon.verticalCenter
             anchors.verticalCenterOffset: -15
-            width: 75
-            height: 75
+            width: 60
+            height: 60
             visible: model.statusUnknown
             running: visible
         }
@@ -154,7 +202,7 @@ CenteredGridView {
             width: parent.width
             anchors.top: pcIcon.bottom
             anchors.bottom: parent.bottom
-            font.pointSize: 36
+            font.pointSize: 24
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.Wrap
             elide: Text.ElideRight
@@ -170,15 +218,6 @@ CenteredGridView {
                     text: qsTr("PC Status: %1").arg(model.online ? qsTr("Online") : qsTr("Offline"))
                     font.bold: true
                     enabled: false
-                }
-                NavigableMenuItem {
-                    text: qsTr("View All Apps")
-                    onTriggered: {
-                        var component = Qt.createComponent("AppView.qml")
-                        var appView = component.createObject(stackView, {"computerIndex": index, "objectName": model.name, "showHiddenGames": true})
-                        stackView.push(appView)
-                    }
-                    visible: model.online && model.paired
                 }
                 NavigableMenuItem {
                     text: qsTr("Wake PC")
@@ -227,12 +266,13 @@ CenteredGridView {
                     errorDialog.open()
                 }
                 else if (model.paired) {
-                    // go to game view
-                    var component = Qt.createComponent("AppView.qml")
-                    var appView = component.createObject(stackView, {"computerIndex": index, "objectName": model.name})
-                    stackView.push(appView)
+                    desktopLaunchPending = true
+                    desktopLoadingDialog.open()
+                    computerModel.startDesktop(index)
                 }
                 else {
+                    desktopLaunchPending = true
+                    computerModel.startDesktop(index)
                     var pin = computerModel.generatePinString()
 
                     // Kick off pairing in the background
@@ -299,6 +339,21 @@ CenteredGridView {
         standardButtons: Dialog.Cancel
         onRejected: {
             // FIXME: We should interrupt pairing here
+            desktopLaunchPending = false
+            computerModel.cancelDesktopStart()
+        }
+    }
+
+    NavigableMessageDialog {
+        id: desktopLoadingDialog
+        text: qsTr("Connecting to Desktop...")
+        showSpinner: true
+        standardButtons: Dialog.Cancel
+        closePolicy: Popup.CloseOnEscape
+
+        onRejected: {
+            desktopLaunchPending = false
+            computerModel.cancelDesktopStart()
         }
     }
 

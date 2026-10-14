@@ -14,6 +14,8 @@
 #define SER_HOSTS "hosts"
 #define SER_HOSTS_BACKUP "hostsbackup"
 
+static constexpr int MAX_COMPUTERS = 1;
+
 class PcMonitorThread : public QThread
 {
     Q_OBJECT
@@ -176,8 +178,8 @@ ComputerManager::ComputerManager(StreamingPreferences* prefs)
         hosts = settings.beginReadArray(SER_HOSTS);
     }
 
-    // Inflate our hosts from QSettings
-    for (int i = 0; i < hosts; i++) {
+    // Load only the first saved PC when upgrading from a multi-host client.
+    for (int i = 0; i < hosts && m_KnownHosts.size() < MAX_COMPUTERS; i++) {
         settings.setArrayIndex(i);
         NvComputer* computer = new NvComputer(settings);
         m_KnownHosts[computer->uuid] = computer;
@@ -366,25 +368,7 @@ void ComputerManager::startPolling()
         return;
     }
 
-    if (m_Prefs->enableMdns) {
-        // Start an MDNS query for GameStream hosts
-        m_MdnsServer.reset(new QMdnsEngine::Server());
-        m_MdnsBrowser = new QMdnsEngine::Browser(m_MdnsServer.data(), "_nvstream._tcp.local.");
-        connect(m_MdnsBrowser, &QMdnsEngine::Browser::serviceAdded,
-                this, [this](const QMdnsEngine::Service& service) {
-            qInfo() << "Discovered mDNS host:" << service.hostname();
-
-            MdnsPendingComputer* pendingComputer = new MdnsPendingComputer(m_MdnsServer, service);
-            connect(pendingComputer, &MdnsPendingComputer::resolvedHost,
-                    this, &ComputerManager::handleMdnsServiceResolved);
-            m_PendingResolution.append(pendingComputer);
-        });
-    }
-    else {
-        qWarning() << "mDNS is disabled by user preference";
-    }
-
-    // Start polling threads for each known host
+    // Discovery is disabled. Poll only the manually configured PC.
     QMapIterator<QString, NvComputer*> i(m_KnownHosts);
     while (i.hasNext()) {
         i.next();
@@ -757,6 +741,8 @@ public:
     {
         connect(this, &PendingAddTask::computerAddCompleted,
                 computerManager, &ComputerManager::computerAddCompleted);
+        connect(this, &PendingAddTask::computerAddRejected,
+                computerManager, &ComputerManager::computerAddRejected);
         connect(this, &PendingAddTask::computerStateChanged,
                 computerManager, &ComputerManager::handleComputerStateChanged);
         connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit,
@@ -765,6 +751,7 @@ public:
 
 signals:
     void computerAddCompleted(QVariant success, QVariant detectedPortBlocking);
+    void computerAddRejected(QString error);
 
     void computerStateChanged(NvComputer* computer);
 
@@ -953,6 +940,15 @@ private:
                     emit computerStateChanged(existingComputer);
                 }
             }
+            else if (m_ComputerManager->m_KnownHosts.size() >= MAX_COMPUTERS) {
+                // The write lock makes this limit atomic across concurrent add requests.
+                m_ComputerManager->m_Lock.unlock();
+                delete newComputer;
+                if (!m_Mdns) {
+                    emit computerAddRejected(tr("Only one PC can be configured. Delete the existing PC before adding another."));
+                }
+                return;
+            }
             else {
                 // Store this in our active sets
                 m_ComputerManager->m_KnownHosts[newComputer->uuid] = newComputer;
@@ -997,6 +993,10 @@ private:
 
 void ComputerManager::addNewHost(NvAddress address, bool mdns, QString name, NvAddress mdnsIpv6Address)
 {
+    if (mdns) {
+        return;
+    }
+
     // Punt to a worker thread to avoid stalling the
     // UI while waiting for serverinfo query to complete
     PendingAddTask* addTask = new PendingAddTask(this, name, address, mdnsIpv6Address, mdns);

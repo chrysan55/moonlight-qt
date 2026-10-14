@@ -1,9 +1,19 @@
 #include "computermodel.h"
 
 #include <QThreadPool>
+#include <QQmlEngine>
+#include <utility>
 
 ComputerModel::ComputerModel(QObject* object)
-    : QAbstractListModel(object) {}
+    : QAbstractListModel(object)
+{
+    m_DesktopStartTimer.setSingleShot(true);
+    m_DesktopStartTimer.setInterval(15000);
+    connect(&m_DesktopStartTimer, &QTimer::timeout, this, [this]() {
+        cancelDesktopStart();
+        emit desktopStartFailed(tr("Timed out loading Desktop from the host PC. Please try again."));
+    });
+}
 
 void ComputerModel::initialize(ComputerManager* computerManager)
 {
@@ -134,9 +144,92 @@ Session* ComputerModel::createSessionForCurrentGame(int computerIndex)
     return nullptr;
 }
 
+void ComputerModel::startDesktop(int computerIndex)
+{
+    cancelDesktopStart();
+
+    if (computerIndex < 0 || computerIndex >= m_Computers.count()) {
+        emit desktopStartFailed(tr("The selected PC is no longer available."));
+        return;
+    }
+
+    m_DesktopComputer = m_Computers[computerIndex];
+    tryStartDesktop();
+}
+
+void ComputerModel::cancelDesktopStart()
+{
+    m_DesktopStartTimer.stop();
+    m_DesktopComputer = nullptr;
+}
+
+void ComputerModel::tryStartDesktop()
+{
+    if (!m_DesktopComputer) {
+        return;
+    }
+
+    NvComputer* computer = m_DesktopComputer;
+    NvApp desktop;
+    QString error;
+    bool isResume = false;
+
+    {
+        QReadLocker lock(&computer->lock);
+
+        if (computer->state != NvComputer::CS_ONLINE) {
+            error = tr("The selected PC is offline.");
+        }
+        else if (computer->pairState != NvComputer::PS_PAIRED) {
+            // The PIN dialog owns the pairing wait. Retry when polling confirms pairing.
+            return;
+        }
+        else if (computer->appList.isEmpty()) {
+            if (!m_DesktopStartTimer.isActive()) {
+                m_DesktopStartTimer.start();
+            }
+            return;
+        }
+        else {
+            // Use the host's actual app ID, including Desktop if it was hidden locally.
+            for (const NvApp& app : std::as_const(computer->appList)) {
+                if (app.name.trimmed().compare(QStringLiteral("Desktop"), Qt::CaseInsensitive) == 0) {
+                    desktop = app;
+                    break;
+                }
+            }
+
+            if (!desktop.isInitialized()) {
+                error = tr("This PC does not provide a Desktop application. Add Desktop in the host's streaming settings.");
+            }
+            else if (computer->currentGameId != 0 && computer->currentGameId != desktop.id) {
+                error = tr("Another application is running on this PC. Quit it on the host before connecting to Desktop.");
+            }
+            else {
+                isResume = computer->currentGameId == desktop.id;
+            }
+        }
+    }
+
+    cancelDesktopStart();
+
+    if (!error.isEmpty()) {
+        emit desktopStartFailed(error);
+        return;
+    }
+
+    auto session = new Session(computer, desktop);
+    QQmlEngine::setObjectOwnership(session, QQmlEngine::JavaScriptOwnership);
+    emit desktopSessionReady(session, isResume);
+}
+
 void ComputerModel::deleteComputer(int computerIndex)
 {
     Q_ASSERT(computerIndex < m_Computers.count());
+
+    if (m_Computers[computerIndex] == m_DesktopComputer) {
+        cancelDesktopStart();
+    }
 
     beginRemoveRows(QModelIndex(), computerIndex, computerIndex);
 
@@ -220,9 +313,19 @@ void ComputerModel::pairComputer(int computerIndex, QString pin)
     m_ComputerManager->pairHost(m_Computers[computerIndex], pin);
 }
 
-void ComputerModel::handlePairingCompleted(NvComputer*, QString error)
+void ComputerModel::handlePairingCompleted(NvComputer* computer, QString error)
 {
+    if (computer == m_DesktopComputer && !error.isEmpty()) {
+        cancelDesktopStart();
+    }
+
     emit pairingCompleted(error.isEmpty() ? QVariant() : error);
+
+    if (computer == m_DesktopComputer) {
+        // Start the timeout now; pairing may not be visible until the next host poll.
+        m_DesktopStartTimer.start();
+        tryStartDesktop();
+    }
 }
 
 void ComputerModel::handleComputerStateChanged(NvComputer* computer)
@@ -239,6 +342,10 @@ void ComputerModel::handleComputerStateChanged(NvComputer* computer)
         // Let the view know that this specific computer changed
         int index = m_Computers.indexOf(computer);
         emit dataChanged(createIndex(index, 0), createIndex(index, 0));
+    }
+
+    if (computer == m_DesktopComputer) {
+        tryStartDesktop();
     }
 }
 

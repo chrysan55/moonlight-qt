@@ -420,6 +420,7 @@ void configureSignalHandlers()
 
 int main(int argc, char *argv[])
 {
+    const QString displayName = QStringLiteral("CloudComputer");
     SDL_SetMainReady();
 
     // Set the app version for the QCommandLineParser's showVersion() command
@@ -430,7 +431,7 @@ int main(int argc, char *argv[])
     // it is critical that these be called before Path::initialize().
     QCoreApplication::setOrganizationName("Moonlight Game Streaming Project");
     QCoreApplication::setOrganizationDomain("moonlight-stream.com");
-    QCoreApplication::setApplicationName("Moonlight");
+    QCoreApplication::setApplicationName("CloudComputer");
 
     if (QFile(QDir::currentPath() + "/portable.dat").exists()) {
         QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -443,6 +444,22 @@ int main(int argc, char *argv[])
     else {
         // Initialize paths for standard installation
         Path::initialize(false);
+    }
+
+    // Preserve saved PCs, pairing credentials, and preferences after the app rename.
+    QSettings settings;
+    if (settings.allKeys().isEmpty()) {
+        QString settingsOrganization = QCoreApplication::organizationName();
+#ifdef Q_OS_DARWIN
+        // Default QSettings uses the domain on macOS, including portable INI files.
+        settingsOrganization = QCoreApplication::organizationDomain();
+#endif
+        QSettings previousSettings(QSettings::defaultFormat(), QSettings::UserScope,
+                                   settingsOrganization, QStringLiteral("Moonlight"));
+        for (const QString& key : previousSettings.allKeys()) {
+            settings.setValue(key, previousSettings.value(key));
+        }
+        settings.sync();
     }
 
     // Override the default QML cache directory with the one we chose
@@ -715,8 +732,8 @@ int main(int argc, char *argv[])
     // Set our app name for SDL to use with PulseAudio and PipeWire. This matches what we
     // provide as our app name to libsoundio too. On SDL 2.0.18+, SDL_APP_NAME is also used
     // for screensaver inhibitor reporting.
-    SDL_SetHint(SDL_HINT_AUDIO_DEVICE_APP_NAME, "Moonlight");
-    SDL_SetHint(SDL_HINT_APP_NAME, "Moonlight");
+    SDL_SetHint(SDL_HINT_AUDIO_DEVICE_APP_NAME, displayName.toUtf8().constData());
+    SDL_SetHint(SDL_HINT_APP_NAME, displayName.toUtf8().constData());
 
     // SDL will try to lock the mouse cursor on Wayland if it's not visible in order to
     // support applications that assume they can warp the cursor (which isn't possible
@@ -754,6 +771,7 @@ int main(int argc, char *argv[])
     }
 
     QGuiApplication app(argc, argv);
+    QGuiApplication::setApplicationDisplayName(displayName);
 
 #ifdef Q_OS_DARWIN
     // macOS defaults "Keyboard navigation" to text fields and lists only, which

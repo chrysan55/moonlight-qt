@@ -106,7 +106,34 @@
     </message>
 </context>
 <context>
+    <name>PendingAddTask</name>
+    <message>
+        <source>Only one PC can be configured. Delete the existing PC before adding another.</source>
+        <translation>最多只能配置一台计算机，请先删除已有计算机，再添加其他计算机。</translation>
+    </message>
+</context>
+<context>
     <name>ComputerModel</name>
+    <message>
+        <source>Timed out loading Desktop from the host PC. Please try again.</source>
+        <translation>从主机加载 Desktop 超时，请重试。</translation>
+    </message>
+    <message>
+        <source>The selected PC is no longer available.</source>
+        <translation>所选计算机已不可用。</translation>
+    </message>
+    <message>
+        <source>The selected PC is offline.</source>
+        <translation>所选计算机已离线。</translation>
+    </message>
+    <message>
+        <source>This PC does not provide a Desktop application. Add Desktop in the host's streaming settings.</source>
+        <translation>此计算机未提供 Desktop 应用，请在主机的串流设置中添加 Desktop。</translation>
+    </message>
+    <message>
+        <source>Another application is running on this PC. Quit it on the host before connecting to Desktop.</source>
+        <translation>此计算机正在运行其他应用，请先在主机上退出该应用，再连接 Desktop。</translation>
+    </message>
     <message>
         <location filename="../gui/computermodel.cpp" line="50"/>
         <source>Online</source>
@@ -215,6 +242,10 @@
 </context>
 <context>
     <name>PcView</name>
+    <message>
+        <source>Connecting to Desktop...</source>
+        <translation>正在连接 Desktop...</translation>
+    </message>
     <message>
         <location filename="../gui/PcView.qml" line="21"/>
         <source>Computers</source>

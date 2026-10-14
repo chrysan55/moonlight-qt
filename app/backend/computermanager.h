@@ -250,6 +250,7 @@ signals:
     void pairingCompleted(NvComputer* computer, QString error);
 
     void computerAddCompleted(QVariant success, QVariant detectedPortBlocking);
+    void computerAddRejected(QString error);
 
     void quitAppCompleted(QVariant error);
 

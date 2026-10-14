@@ -2,6 +2,7 @@
 #include "streaming/session.h"
 
 #include <QAbstractListModel>
+#include <QTimer>
 
 class ComputerModel : public QAbstractListModel
 {
@@ -45,9 +46,15 @@ public:
 
     Q_INVOKABLE Session* createSessionForCurrentGame(int computerIndex);
 
+    Q_INVOKABLE void startDesktop(int computerIndex);
+
+    Q_INVOKABLE void cancelDesktopStart();
+
 signals:
     void pairingCompleted(QVariant error);
     void connectionTestCompleted(int result, QString blockedPorts);
+    void desktopSessionReady(Session* session, bool isResume);
+    void desktopStartFailed(QString error);
 
 private slots:
     void handleComputerStateChanged(NvComputer* computer);
@@ -55,6 +62,10 @@ private slots:
     void handlePairingCompleted(NvComputer* computer, QString error);
 
 private:
+    void tryStartDesktop();
+
     QVector<NvComputer*> m_Computers;
     ComputerManager* m_ComputerManager;
+    NvComputer* m_DesktopComputer = nullptr;
+    QTimer m_DesktopStartTimer;
 };

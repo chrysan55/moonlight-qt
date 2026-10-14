@@ -1,0 +1,121 @@
+name: CloudComputer single EXE
+
+on:
+  push:
+    branches: [codex/cloudcomputer-windows-amd64]
+    paths: [scripts/package-onefile.nsi, .github/workflows/pack-onefile.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download verified AMD64 application
+        uses: actions/download-artifact@v5
+        with:
+          name: CloudComputer-Windows-amd64
+          run-id: 38569631681
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build/input
+
+      - name: Install official NSIS compiler
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path build/tools -Force | Out-Null
+          Invoke-WebRequest 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' -OutFile build/tools/nsis.zip
+          Expand-Archive build/tools/nsis.zip build/tools
+
+      - name: Build single EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD 'build/input/CloudComputer-Windows-amd64.zip'
+          if ((Get-FileHash $zip).Hash -ne 'D6463C52DD7151469FFB2DD1AAD05CA056EF54A0DCFC075CE88DEAC18D598B8F') { throw 'Payload checksum mismatch' }
+          $payload = Join-Path $PWD 'build/payload'
+          $output = Join-Path $PWD 'build/onefile'
+          Expand-Archive $zip $payload
+          New-Item -ItemType Directory $output -Force | Out-Null
+          $compiler = (Get-ChildItem build/tools -Filter makensis.exe -Recurse | Select-Object -First 1).FullName
+          if (-not $compiler) { throw 'NSIS compiler was not found' }
+          & $compiler "/DPAYLOAD=$payload" "/DOUTPUT=$output" scripts/package-onefile.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'Single EXE packaging failed' }
+
+      - name: Verify launch, settings, concurrency, and cleanup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $testDir = Join-Path $PWD 'build/单文件 test'
+          New-Item -ItemType Directory $testDir -Force | Out-Null
+          $exe = Join-Path $testDir 'CloudComputer.exe'
+          Copy-Item build/onefile/CloudComputer.exe $exe
+          foreach ($case in @(@('--version', 0), @('--onefile-invalid-option', 1))) {
+            $p = Start-Process $exe -ArgumentList $case[0] -WorkingDirectory $testDir -PassThru
+            if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "CLI launch timed out: $($case[0])" }
+            if ($p.ExitCode -ne $case[1]) { throw "Wrong exit code for $($case[0]): $($p.ExitCode)" }
+          }
+          $hosts = 'HKCU:\Software\Moonlight Game Streaming Project\CloudComputer\hosts'
+          New-Item "$hosts\1" -Force | Out-Null
+          New-ItemProperty $hosts -Name size -Value 1 -PropertyType DWord -Force | Out-Null
+          foreach ($entry in @{hostname='SavedPC'; customname='true'; uuid='00000000-0000-0000-0000-000000000001'; manualaddress='127.0.0.1'; manualport='9'}.GetEnumerator()) {
+            New-ItemProperty "$hosts\1" -Name $entry.Key -Value $entry.Value -PropertyType String -Force | Out-Null
+          }
+          function Find-App($launcherId) {
+            for ($attempt = 0; $attempt -lt 100; $attempt++) {
+              $child = Get-CimInstance Win32_Process -Filter "ParentProcessId = $launcherId AND Name = 'CloudComputer.exe'" | Select-Object -First 1
+              if ($child) {
+                $process = Get-Process -Id $child.ProcessId -ErrorAction SilentlyContinue
+                if ($process -and $process.MainWindowHandle -ne 0 -and $process.MainWindowTitle -eq 'CloudComputer') { return $child }
+              }
+              Start-Sleep -Milliseconds 250
+            }
+            throw 'CloudComputer main window did not appear'
+          }
+          $launchers = @()
+          $children = @()
+          $runtimeDirs = @()
+          try {
+            for ($instance = 0; $instance -lt 2; $instance++) {
+              $launcher = Start-Process $exe -WorkingDirectory $testDir -PassThru
+              $launchers += $launcher
+              $child = Find-App $launcher.Id
+              $children += $child
+              $runtime = Split-Path $child.ExecutablePath -Parent
+              $runtimeDirs += $runtime
+              if (-not (Test-Path "$runtime/platforms/qwindows.dll")) { throw 'Qt platform runtime missing' }
+              if (Test-Path "$runtime/portable.dat") { throw 'Settings would be lost in temporary runtime' }
+              if ($launcher.HasExited) { throw 'Launcher exited before the application' }
+            }
+            if ($runtimeDirs[0] -eq $runtimeDirs[1]) { throw 'Concurrent launches share a temporary directory' }
+            foreach ($child in $children) {
+              $process = Get-Process -Id $child.ProcessId
+              if (-not $process.CloseMainWindow()) { throw 'Unable to close test application normally' }
+              if (-not $process.WaitForExit(20000)) { throw 'Application shutdown timed out' }
+            }
+            foreach ($launcher in $launchers) {
+              if (-not $launcher.WaitForExit(20000) -or $launcher.ExitCode -ne 0) { throw 'Launcher shutdown failed' }
+            }
+            foreach ($runtime in $runtimeDirs) {
+              if (Test-Path $runtime) { throw "Temporary runtime was not cleaned up: $runtime" }
+            }
+            if ((Get-ItemProperty "$hosts\1").hostname -ne 'SavedPC') { throw 'Saved PC configuration was lost' }
+          } finally {
+            foreach ($child in $children) { Stop-Process -Id $child.ProcessId -ErrorAction SilentlyContinue }
+            foreach ($launcher in $launchers) { if (-not $launcher.HasExited) { Stop-Process -Id $launcher.Id -ErrorAction SilentlyContinue } }
+          }
+          @('PASS: verified AMD64 payload', 'PASS: version and invalid-option exit codes', 'PASS: GUI launch from Chinese path with spaces', 'PASS: independent concurrent instances', 'PASS: runtime remains until app exit and is cleaned up afterward', 'PASS: saved PC remains outside temporary runtime', 'NSIS launcher: x86 Unicode; application and runtime: AMD64') | Set-Content build/onefile/verification.txt
+          Get-FileHash build/onefile/CloudComputer.exe | Format-List
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: CloudComputer-OneFile-Windows-amd64
+          path: build/onefile/*
+          compression-level: 0
+          if-no-files-found: error

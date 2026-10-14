@@ -3,6 +3,7 @@ name: CloudComputer Windows amd64
 on:
   push:
     branches: [codex/cloudcomputer-windows-amd64]
+    paths: [app/**, AntiHooking/**, moonlight-common-c/**, qmdnsengine/**, h264bitstream/**, scripts/build-arch.bat, setup-deps.ps1, "*.pro", "*.pri"]
   workflow_dispatch:
 
 permissions:

@@ -193,6 +193,7 @@ CenteredGridView {
 
         ToolButton {
             id: pcMenuButton
+            z: 2
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.topMargin: 10
@@ -205,13 +206,15 @@ CenteredGridView {
             topPadding: 0
             bottomPadding: 0
             text: "⋯"
-            contentItem: Text {
-                text: "···"
-                color: Brand.secondary
-                font.pixelSize: 20
-                font.bold: true
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            contentItem: Item {
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 3
+                    Repeater {
+                        model: 3
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Brand.secondary }
+                    }
+                }
             }
             Accessible.name: qsTr("管理 PC")
             onClicked: if (pcDelegate.pcContextMenu) pcDelegate.pcContextMenu.popup(pcMenuButton, 0, height)

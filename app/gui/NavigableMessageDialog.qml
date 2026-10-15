@@ -1,6 +1,8 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.2
+import QtQuick.Controls.Material 2.2
+import "Brand.js" as Brand
 
 NavigableDialog {
     id: dialog
@@ -60,9 +62,14 @@ NavigableDialog {
     footer: DialogButtonBox {
         id: dialogButtonBox
         standardButtons: dialog.standardButtons
+        background: Item {}
+        rightPadding: 16
+        leftPadding: 16
+        bottomPadding: 12
 
         delegate: Button {
             flat: true
+            Material.accent: Brand.text
 
             Keys.onReturnPressed: clicked()
             Keys.onEnterPressed: clicked()

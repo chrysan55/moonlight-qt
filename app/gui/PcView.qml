@@ -1,6 +1,7 @@
 import QtQuick 2.9
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
+import "Brand.js" as Brand
 
 import ComputerModel 1.0
 
@@ -19,7 +20,7 @@ CenteredGridView {
     topMargin: Math.max(16, (height - cellHeight) / 2)
     bottomMargin: 16
     horizontalMargin: Math.max(minMargin, (width - cellWidth) / 2)
-    cellWidth: 280; cellHeight: 280;
+    cellWidth: Math.min(420, width - 48); cellHeight: 276;
     objectName: "奕东智算云电脑"
 
     Component.onCompleted: {
@@ -134,15 +135,25 @@ CenteredGridView {
     Button {
         id: connectPcButton
         anchors.centerIn: parent
-        width: 220
-        height: 80
+        width: pcGrid.cellWidth
+        height: pcGrid.cellHeight
         visible: pcGrid.count === 0
         enabled: visible
         text: qsTr("连接 PC")
-        font.pointSize: 18
-        icon.source: "qrc:/res/ic_add_to_queue_white_48px.svg"
-        icon.width: 32
-        icon.height: 32
+        padding: 0
+        leftPadding: 0
+        rightPadding: 0
+        topPadding: 0
+        bottomPadding: 0
+        background: Item {}
+        contentItem: ConnectionTile {
+            title: "连接你的云电脑"
+            subtitle: "专属桌面，一触即达"
+            statusText: "待添加"
+            actionText: connectPcButton.text
+            hovered: connectPcButton.hovered || connectPcButton.down
+            highlighted: connectPcButton.visualFocus
+        }
         onClicked: addPcDialog.open()
     }
 
@@ -155,57 +166,56 @@ CenteredGridView {
     model: computerModel
 
     delegate: NavigableItemDelegate {
-        width: 270; height: 270;
+        width: pcGrid.cellWidth; height: pcGrid.cellHeight;
+        id: pcDelegate
+        padding: 0
+        leftPadding: 0
+        rightPadding: 0
+        topPadding: 0
+        bottomPadding: 0
+        Accessible.name: model.name
+        background: Item {}
         grid: pcGrid
 
         property alias pcContextMenu : pcContextMenuLoader.item
 
-        Image {
-            id: pcIcon
-            anchors.horizontalCenter: parent.horizontalCenter
-            source: "qrc:/res/desktop_windows-48px.svg"
-            sourceSize {
-                width: 160
-                height: 160
+        contentItem: ConnectionTile {
+            title: model.name
+            subtitle: model.statusUnknown ? "正在检测连接状态" : (model.online ? (model.paired ? "已就绪，点击进入桌面" : "首次连接需要完成配对") : "设备暂时离线，可管理连接")
+            statusText: model.statusUnknown ? "检测中" : (model.online ? (model.paired ? "可连接" : "待配对") : "离线")
+            statusColor: model.statusUnknown ? Brand.pending : (model.online ? Brand.online : Brand.muted)
+            actionText: model.online ? "进入桌面" : "管理连接"
+            primaryAction: model.online
+            hovered: pcDelegate.hovered || pcDelegate.down
+            highlighted: pcDelegate.highlighted || pcDelegate.visualFocus
+            saved: true
+        }
+
+        ToolButton {
+            id: pcMenuButton
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: 10
+            anchors.rightMargin: 12
+            width: 36
+            height: 32
+            padding: 0
+            leftPadding: 0
+            rightPadding: 0
+            topPadding: 0
+            bottomPadding: 0
+            text: "⋯"
+            contentItem: Text {
+                text: "···"
+                color: Brand.secondary
+                font.pixelSize: 20
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
             }
-        }
-
-        Image {
-            // TODO: Tooltip
-            id: stateIcon
-            anchors.horizontalCenter: pcIcon.horizontalCenter
-            anchors.verticalCenter: pcIcon.verticalCenter
-            anchors.verticalCenterOffset: !model.online ? -18 : -16
-            visible: !model.statusUnknown && (!model.online || !model.paired)
-            source: !model.online ? "qrc:/res/warning_FILL1_wght300_GRAD200_opsz24.svg" : "qrc:/res/baseline-lock-24px.svg"
-            sourceSize {
-                width: !model.online ? 60 : 56
-                height: !model.online ? 60 : 56
-            }
-        }
-
-        BusyIndicator {
-            id: statusUnknownSpinner
-            anchors.horizontalCenter: pcIcon.horizontalCenter
-            anchors.verticalCenter: pcIcon.verticalCenter
-            anchors.verticalCenterOffset: -15
-            width: 60
-            height: 60
-            visible: model.statusUnknown
-            running: visible
-        }
-
-        Label {
-            id: pcNameText
-            text: model.name
-
-            width: parent.width
-            anchors.top: pcIcon.bottom
-            anchors.bottom: parent.bottom
-            font.pointSize: 24
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.Wrap
-            elide: Text.ElideRight
+            Accessible.name: qsTr("管理 PC")
+            onClicked: if (pcDelegate.pcContextMenu) pcDelegate.pcContextMenu.popup(pcMenuButton, 0, height)
+            background: Rectangle { radius: 6; color: parent.hovered ? "#303845" : "transparent" }
         }
 
         Loader {

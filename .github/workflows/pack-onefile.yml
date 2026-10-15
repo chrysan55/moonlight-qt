@@ -1,10 +1,18 @@
 name: CloudComputer single EXE
 
 on:
-  push:
-    branches: [codex/cloudcomputer-windows-amd64]
-    paths: [scripts/package-onefile.nsi, .github/workflows/pack-onefile.yml]
+  workflow_call:
+    inputs:
+      source_run_id:
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful Windows build run ID
+        required: true
+        default: '38569631681'
+        type: string
 
 permissions:
   contents: read
@@ -21,7 +29,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: CloudComputer-Windows-amd64
-          run-id: 38569631681
+          run-id: ${{ inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: build/input
 
@@ -40,7 +48,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $zip = Join-Path $PWD 'build/input/CloudComputer-Windows-amd64.zip'
-          if ((Get-FileHash $zip).Hash -ne 'D6463C52DD7151469FFB2DD1AAD05CA056EF54A0DCFC075CE88DEAC18D598B8F') { throw 'Payload checksum mismatch' }
+          $receipt = Get-Content 'build/input/windows-amd64-verification.txt' -Raw
+          $match = [regex]::Match($receipt, '(?im)^Package SHA256: ([A-F0-9]+)')
+          $expected = if ($match.Success) { $match.Groups[1].Value } else { 'D6463C52DD7151469FFB2DD1AAD05CA056EF54A0DCFC075CE88DEAC18D598B8F' }
+          if ((Get-FileHash $zip).Hash -ne $expected) { throw 'Payload checksum mismatch' }
           $payload = Join-Path $PWD 'build/payload'
           $output = Join-Path $PWD 'build/onefile'
           Expand-Archive $zip $payload

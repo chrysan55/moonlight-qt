@@ -1,6 +1,9 @@
 <RCC>
     <qresource prefix="/">
         <file>gui/main.qml</file>
+        <file>gui/Brand.js</file>
+        <file>gui/BrandLogo.qml</file>
+        <file>gui/ConnectionTile.qml</file>
         <file>gui/PcView.qml</file>
         <file>gui/AppView.qml</file>
         <file>gui/SettingsView.qml</file>

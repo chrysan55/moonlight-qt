@@ -1,0 +1,17 @@
+CloudComputer visual assets — 2026-10-15
+
+YDET wordmark: the original transparent header image published on Yidong's IPO roadshow page.
+https://www.cs.com.cn/roadshow/ipo/301123/
+https://www.cs.com.cn/roadshow/ipo/301123/202201/W020220107375499203188.png
+
+ydet-original.png preserves that image. ydet-wordmark.png is a lossless crop of its wordmark area (8, 25, 174, 50); lettering and color were not redrawn.
+The red #E60012 and hover red #C2000F appear in the roadshow page's navigation CSS.
+
+Group identity was cross-checked against the company's annual report cover photograph:
+https://static.cninfo.com.cn/finalpage/2025-04-24/1223242171.PDF
+The current company URL www.ydet.com is also listed in its updated annual disclosure:
+https://static.cninfo.com.cn/finalpage/2026-06-26/1225391680.PDF
+
+No separate verified Yidong Intelligent Computing website or identity manual was found.
+The graphite palette, connection card, desktop illustration, and application icon are product UI designs; they are not presented as official group identity standards.
+The application icon incorporates the unchanged YDET wordmark within a desktop symbol.

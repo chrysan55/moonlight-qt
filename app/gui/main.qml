@@ -3,6 +3,7 @@ import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
 import QtQuick.Window 2.2
 import QtQuick.Controls.Material 2.2
+import "Brand.js" as Brand
 
 import ComputerManager 1.0
 import AutoUpdateChecker 1.0
@@ -24,16 +25,16 @@ ApplicationWindow {
     height: 480
     minimumWidth: 560
     minimumHeight: 420
+    color: Brand.background
+    font.family: Qt.platform.os === "windows" ? "Microsoft YaHei UI" : (Qt.platform.os === "osx" ? "PingFang SC" : "Sans Serif")
+    font.pixelSize: 13
+    Material.background: Brand.background
+    Material.foreground: Brand.text
+    Material.primary: Brand.background
+    Material.accent: Brand.red
 
     // This function runs prior to creation of the initial StackView item
     function doEarlyInit() {
-        // Override the background color to Material 2 colors for Qt 6.5+
-        // in order to improve contrast between GFE's placeholder box art
-        // and the background of the app grid.
-        if (SystemProperties.usesMaterial3Theme) {
-            Material.background = "#303030"
-        }
-
         SdlGamepadKeyNavigation.enable()
     }
 
@@ -238,25 +239,16 @@ ApplicationWindow {
 
     header: ToolBar {
         id: toolBar
-        height: 52
-        anchors.topMargin: 5
-        anchors.bottomMargin: 5
-
-        Label {
-            id: titleLabel
-            visible: toolBar.width > 700
-            anchors.fill: parent
-            text: "奕东智算云电脑"
-            font.pointSize: 18
-            elide: Label.ElideRight
-            horizontalAlignment: Qt.AlignHCenter
-            verticalAlignment: Qt.AlignVCenter
+        height: 74
+        background: Rectangle {
+            color: Brand.background
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#252B35" }
         }
 
         RowLayout {
-            spacing: 10
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
+            spacing: 14
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
             anchors.fill: parent
 
             NavigableToolButton {
@@ -272,48 +264,26 @@ ApplicationWindow {
                 }
             }
 
-            // This label will appear when the window gets too small and
-            // we need to ensure the toolbar controls don't collide
-            Label {
-                id: titleRowLabel
-                font.pointSize: titleLabel.font.pointSize
-                elide: Label.ElideRight
-                horizontalAlignment: Qt.AlignHCenter
-                verticalAlignment: Qt.AlignVCenter
+            BrandLogo { Layout.preferredWidth: 86; Layout.preferredHeight: 28 }
+
+            Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 28; color: Brand.border }
+
+            Column {
                 Layout.fillWidth: true
-
-                // We need this label to always be visible so it can occupy
-                // the remaining space in the RowLayout. To "hide" it, we
-                // just set the text to empty string.
-                text: !titleLabel.visible ? titleLabel.text : ""
-            }
-
-            Label {
-                id: versionLabel
-                visible: stackView.currentItem instanceof SettingsView
-                text: qsTr("Version %1").arg(SystemProperties.versionString)
-                font.pointSize: 12
-                horizontalAlignment: Qt.AlignRight
-                verticalAlignment: Qt.AlignVCenter
-            }
-
-            NavigableToolButton {
-                id: discordButton
-                visible: SystemProperties.hasBrowser &&
-                         stackView.currentItem instanceof SettingsView
-
-                iconSource: "qrc:/res/discord.svg"
-
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Join our community on Discord")
-
-                // TODO need to make sure browser is brought to foreground.
-                onClicked: Qt.openUrlExternally("https://moonlight-stream.org/discord");
-
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
+                spacing: 3
+                Label {
+                    width: parent.width
+                    text: "奕东智算云电脑"
+                    color: Brand.text
+                    font.pixelSize: 17
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+                Label {
+                    text: "CLOUDCOMPUTER"
+                    color: Brand.muted
+                    font.pixelSize: 9
+                    font.letterSpacing: 2.3
                 }
             }
 
@@ -359,7 +329,7 @@ ApplicationWindow {
                 id: helpButton
                 visible: SystemProperties.hasBrowser
 
-                iconSource: "qrc:/res/question_mark.svg"
+                iconSource: "qrc:/res/brand/help.svg"
 
                 ToolTip.delay: 1000
                 ToolTip.timeout: 3000
@@ -401,7 +371,7 @@ ApplicationWindow {
             NavigableToolButton {
                 id: settingsButton
 
-                iconSource:  "qrc:/res/settings.svg"
+                iconSource: "qrc:/res/brand/settings.svg"
 
                 onClicked: navigateTo("qrc:/gui/SettingsView.qml", SettingsView)
 
@@ -420,6 +390,18 @@ ApplicationWindow {
                 ToolTip.visible: hovered
                 ToolTip.text: qsTr("Settings") + (settingsShortcut.nativeText ? (" ("+settingsShortcut.nativeText+")") : "")
             }
+        }
+    }
+
+    footer: ToolBar {
+        height: 34
+        background: Rectangle { color: Brand.background }
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            Label { text: "高性能远程桌面"; color: Brand.muted; font.pixelSize: 10; Layout.fillWidth: true }
+            Label { text: "CloudComputer  /  " + SystemProperties.versionString; color: Brand.muted; font.pixelSize: 10 }
         }
     }
 

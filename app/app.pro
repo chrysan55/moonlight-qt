@@ -545,7 +545,7 @@ unix:!macx: {
     INSTALLS += target desktop icons appstream
 }
 win32 {
-    RC_ICONS = moonlight.ico
+    RC_ICONS = cloudcomputer.ico
     QMAKE_TARGET_COMPANY = Moonlight Game Streaming Project
     QMAKE_TARGET_DESCRIPTION = CloudComputer Streaming Client
     QMAKE_TARGET_PRODUCT = CloudComputer
@@ -560,7 +560,7 @@ macx {
 
     QMAKE_INFO_PLIST = $$OUT_PWD/Info.plist
 
-    APP_BUNDLE_RESOURCES.files = moonlight.icns
+    APP_BUNDLE_RESOURCES.files = cloudcomputer.icns
     APP_BUNDLE_RESOURCES.path = Contents/Resources
 
     APP_BUNDLE_PLIST.files = $$OUT_PWD/Info.plist

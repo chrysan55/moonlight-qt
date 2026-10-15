@@ -1,5 +1,13 @@
 <RCC>
     <qresource prefix="/">
+        <file>res/brand/ydet-original.png</file>
+        <file>res/brand/ydet-wordmark.png</file>
+        <file>res/brand/app-icon.svg</file>
+        <file>res/brand/desktop.svg</file>
+        <file>res/brand/arrow-up-right.svg</file>
+        <file>res/brand/settings.svg</file>
+        <file>res/brand/help.svg</file>
+
         <file>res/ic_videogame_asset_white_48px.svg</file>
         <file>res/desktop_windows-48px.svg</file>
         <file>res/ic_add_to_queue_white_48px.svg</file>

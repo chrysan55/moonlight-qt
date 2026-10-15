@@ -1,8 +1,11 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.2
+import "Brand.js" as Brand
 
 Menu {
     property var initiator
+    padding: 6
+    background: Rectangle { color: Brand.surface; radius: 10; border.color: Brand.border }
 
     onOpened: {
         // If the initiating object currently has keyboard focus,

@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   windows-amd64:
@@ -31,6 +32,16 @@ jobs:
 
       - name: Download upstream Windows dependencies
         run: ./setup-deps.ps1
+
+      - name: Install Qt parallel build tool
+        shell: pwsh
+        run: |
+          $jom = Join-Path $env:RUNNER_TEMP 'jom'
+          curl.exe --fail --location --retry 3 https://download.qt.io/official_releases/jom/jom_1_1_7.zip --output "$env:RUNNER_TEMP/jom.zip"
+          if ($LASTEXITCODE -ne 0) { throw 'jom download failed' }
+          7z.exe x "$env:RUNNER_TEMP/jom.zip" "-o$jom" -y
+          if ($LASTEXITCODE -ne 0) { throw 'jom extraction failed' }
+          $jom | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build and deploy Release x64
         shell: cmd
@@ -61,7 +72,9 @@ jobs:
           New-Item -ItemType File -Path (Join-Path $deploy 'portable.dat') -Force | Out-Null
           @("PASS: MSVC Release build", "PASS: PE machine AMD64 (0x8664)", "PASS: CloudComputer product name", "PASS: --version with deployed DLLs", "PASS: Qt platform and VC runtime files", "Source: $env:GITHUB_SHA") | Set-Content 'build/windows-amd64-verification.txt'
           Compress-Archive -Path "$deploy/*" -DestinationPath 'build/CloudComputer-Windows-amd64.zip'
-          Get-FileHash 'build/CloudComputer-Windows-amd64.zip' -Algorithm SHA256 | Format-List
+          $hash = (Get-FileHash 'build/CloudComputer-Windows-amd64.zip' -Algorithm SHA256).Hash
+          "Package SHA256: $hash" | Add-Content 'build/windows-amd64-verification.txt'
+          Write-Output "Package SHA256: $hash"
 
       - name: Upload portable Windows program
         uses: actions/upload-artifact@v6
@@ -82,3 +95,9 @@ jobs:
             build/windows-version.*.txt
             build/build-x64-release/**/*.log
           if-no-files-found: ignore
+
+  single-exe:
+    needs: windows-amd64
+    uses: ./.github/workflows/pack-onefile.yml
+    with:
+      source_run_id: ${{ format('{0}', github.run_id) }}

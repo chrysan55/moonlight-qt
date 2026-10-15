@@ -5,7 +5,12 @@ import "Brand.js" as Brand
 Menu {
     property var initiator
     padding: 6
-    background: Rectangle { color: Brand.surface; radius: 10; border.color: Brand.border }
+    background: Rectangle {
+        implicitWidth: 220
+        color: Brand.surface
+        radius: 10
+        border.color: Brand.border
+    }
 
     onOpened: {
         // If the initiating object currently has keyboard focus,
